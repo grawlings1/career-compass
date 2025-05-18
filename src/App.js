@@ -20,7 +20,7 @@ function App() {
 
     try {
       setLoading(true);
-      const response = await axios.post("http://localhost:5001/analyze", formData);
+      const response = await axios.post("https://career-compass-c1qc.onrender.com/analyze", formData);
       const dedupedMatched = [...new Set(response.data.matchedSkills)].map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
       const dedupedMissing = [...new Set(response.data.missingSkills)].map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
       const cleanedSummary = response.data.summary.replace(/(\b\w+\b)(,\s*\1)+/gi, "$1");
