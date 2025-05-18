@@ -8,7 +8,7 @@ const app = express();
 
 // ✅ Allow requests from React frontend
 const corsOptions = {
-  origin: "http://localhost:3000",
+  origin: ["http://localhost:3000", "https://yourcareer-compass.surge.sh"],
   methods: ["POST"],
 };
 app.use(cors(corsOptions));
