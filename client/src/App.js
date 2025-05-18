@@ -20,16 +20,8 @@ function App() {
 
     try {
       setLoading(true);
-      const response = await axios.post("https://career-compass-c1qc.onrender.com/analyze", formData);
-      const dedupedMatched = [...new Set(response.data.matchedSkills)].map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
-      const dedupedMissing = [...new Set(response.data.missingSkills)].map(skill => skill.charAt(0).toUpperCase() + skill.slice(1));
-      const cleanedSummary = response.data.summary.replace(/(\b\w+\b)(,\s*\1)+/gi, "$1");
-      setResult({
-        ...response.data,
-        matchedSkills: dedupedMatched,
-        missingSkills: dedupedMissing,
-        summary: cleanedSummary,
-      });
+      const response = await axios.post("https://career-compass-c1qc.onrender.com/analyze", formData); // 👈 direct backend call
+      setResult(response.data);
     } catch (err) {
       console.error("ERROR:", err);
       alert("Something went wrong. Check your server.");
@@ -39,66 +31,67 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-indigo-100 via-sky-100 to-white flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-3xl bg-white shadow-2xl p-10 rounded-3xl border border-gray-200">
-        <h1 className="text-4xl font-extrabold text-center text-gray-800 mb-8 tracking-tight">🎯 Career Compass</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-xl mx-auto bg-white shadow-xl p-8 rounded-2xl border border-gray-200">
+        <h1 className="text-3xl font-bold text-center text-indigo-800 mb-6">Career Compass</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Upload Resume (PDF)</label>
-            <input
-              type="file"
-              accept=".pdf"
-              onChange={(e) => setResume(e.target.files[0])}
-              className="block w-full border border-gray-300 rounded-lg shadow-sm p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <input
+            type="file"
+            accept=".pdf"
+            onChange={(e) => setResume(e.target.files[0])}
+            className="block w-full border p-2 rounded-md"
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Paste Job Description</label>
-            <textarea
-              rows={6}
-              className="w-full p-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Paste the job description here..."
-              value={jobText}
-              onChange={(e) => setJobText(e.target.value)}
-            />
-          </div>
+          <textarea
+            rows={6}
+            className="w-full p-3 border border-gray-300 rounded-md"
+            placeholder="Paste the job description here..."
+            value={jobText}
+            onChange={(e) => setJobText(e.target.value)}
+          />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white font-semibold py-3 px-4 text-sm rounded-lg shadow hover:bg-blue-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-indigo-600 text-white px-6 py-3 rounded-md w-full font-semibold hover:bg-indigo-700 transition"
           >
-            {loading ? "Analyzing..." : "Analyze Resume"}
+            {loading ? "Analyzing..." : "Analyze"}
           </button>
         </form>
 
         {result && (
-          <div className="mt-10 bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">📊 Analysis Results</h2>
-            <p className="mb-4"><strong>Match Score:</strong> {result.score}%</p>
-            <div className="mb-4">
-              <strong className="block mb-1">Matched Skills:</strong>
-              <div className="flex flex-wrap gap-2">
-                {result.matchedSkills.map((skill, index) => (
-                  <span key={index} className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full shadow-sm">
-                    {skill}
+          <div className="mt-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">📊 Analysis Results</h2>
+            <p className="mb-2"><strong>Match Score:</strong> {result.score}%</p>
+
+            <div className="mb-2">
+              <strong>Matched Skills:</strong>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {result.matchedSkills.map((skill, i) => (
+                  <span key={i} className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
+                    {skill.charAt(0).toUpperCase() + skill.slice(1)}
                   </span>
                 ))}
               </div>
             </div>
-            <div className="mb-4">
-              <strong className="block mb-1">Missing Skills:</strong>
-              <div className="flex flex-wrap gap-2">
-                {result.missingSkills.length ? result.missingSkills.map((skill, index) => (
-                  <span key={index} className="bg-red-100 text-red-800 text-sm font-medium px-3 py-1 rounded-full shadow-sm">
-                    {skill}
-                  </span>
-                )) : <span className="text-sm text-gray-500">None</span>}
+
+            <div className="mb-2">
+              <strong>Missing Skills:</strong>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {result.missingSkills.length > 0 ? (
+                  result.missingSkills.map((skill, i) => (
+                    <span key={i} className="bg-red-100 text-red-800 text-sm font-medium px-3 py-1 rounded-full">
+                      {skill.charAt(0).toUpperCase() + skill.slice(1)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-sm text-gray-600">None</span>
+                )}
               </div>
             </div>
-            <p className="text-gray-700"><strong>Summary:</strong> {result.summary}</p>
+
+            <p className="mt-4 text-gray-700"><strong>Summary:</strong> {result.summary}</p>
           </div>
         )}
       </div>
