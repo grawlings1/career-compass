@@ -1,102 +1,105 @@
-import { useState } from "react";
-import axios from "axios";
+const express = require("express");
+const cors = require("cors");
+const multer = require("multer");
+const pdfParse = require("pdf-parse");
+const fs = require("fs");
 
-function App() {
-  const [resume, setResume] = useState(null);
-  const [jobText, setJobText] = useState("");
-  const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(false);
+const app = express();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!resume || !jobText.trim()) {
-      alert("Please upload a resume and paste a job description.");
-      return;
+// ✅ Allow requests from the frontend
+const corsOptions = {
+  origin: ["http://localhost:3000", "https://yourcareer-compass.surge.sh"],
+  methods: ["POST"],
+};
+app.use(cors(corsOptions));
+
+// ✅ Log every request that hits the server
+app.use((req, res, next) => {
+  console.log(`➡️ Incoming ${req.method} request to ${req.url}`);
+  next();
+});
+
+// ✅ Handle file uploads
+const upload = multer({ dest: "uploads/" });
+
+// ✅ Main endpoint: Analyze resume against job description
+app.post("/analyze", upload.single("resume"), async (req, res) => {
+  console.log("🚀 /analyze endpoint hit");
+
+  try {
+    const jobText = req.body.jobText;
+    const file = req.file;
+
+    console.log("📄 File uploaded:", file?.originalname);
+    console.log("📝 Job text (start):", jobText?.slice(0, 100) || "None");
+
+    if (!file || !jobText) {
+      return res.status(400).json({ error: "Missing resume or job description." });
     }
 
-    const formData = new FormData();
-    formData.append("resume", resume);
-    formData.append("jobText", jobText);
+    // Read and parse resume
+    const dataBuffer = fs.readFileSync(file.path);
+    const pdfData = await pdfParse(dataBuffer);
+    const resumeText = pdfData.text.toLowerCase();
 
-    try {
-      setLoading(true);
-      const response = await axios.post("https://career-compass-c1qc.onrender.com/analyze", formData); // 👈 direct backend call
-      setResult(response.data);
-    } catch (err) {
-      console.error("ERROR:", err);
-      alert("Something went wrong. Check your server.");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Clean up uploaded file
+    fs.unlinkSync(file.path);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-xl mx-auto bg-white shadow-xl p-8 rounded-2xl border border-gray-200">
-        <h1 className="text-3xl font-bold text-center text-indigo-800 mb-6">Career Compass</h1>
+    const resumeWords = new Set(resumeText.split(/\W+/));
+    const jobWords = jobText.toLowerCase().split(/\W+/);
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="file"
-            accept=".pdf"
-            onChange={(e) => setResume(e.target.files[0])}
-            className="block w-full border p-2 rounded-md"
-          />
+    // Expanded known skills (technical + soft)
+    const knownSkills = [
+      // technical
+      "python", "sql", "excel", "react", "node", "aws", "git", "docker",
+      "typescript", "javascript", "html", "css", "mongodb", "firebase",
+      // soft skills
+      "communication", "leadership", "teamwork", "problem-solving", "adaptability"
+    ];
 
-          <textarea
-            rows={6}
-            className="w-full p-3 border border-gray-300 rounded-md"
-            placeholder="Paste the job description here..."
-            value={jobText}
-            onChange={(e) => setJobText(e.target.value)}
-          />
+    // Fuzzy match function (e.g., reactjs matches react)
+    const includesFuzzy = (word, textSet) => {
+      return [...textSet].some(t => t.includes(word) || word.includes(t));
+    };
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-indigo-600 text-white px-6 py-3 rounded-md w-full font-semibold hover:bg-indigo-700 transition"
-          >
-            {loading ? "Analyzing..." : "Analyze"}
-          </button>
-        </form>
+    const skillsInJob = knownSkills.filter(skill => jobWords.includes(skill));
 
-        {result && (
-          <div className="mt-8 bg-gray-50 p-6 rounded-xl border border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">📊 Analysis Results</h2>
-            <p className="mb-2"><strong>Match Score:</strong> {result.score}%</p>
+    const matchedSkills = skillsInJob.filter(skill => includesFuzzy(skill, resumeWords));
+    const missingSkills = skillsInJob.filter(skill => !includesFuzzy(skill, resumeWords));
 
-            <div className="mb-2">
-              <strong>Matched Skills:</strong>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {result.matchedSkills.map((skill, i) => (
-                  <span key={i} className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
-                    {skill.charAt(0).toUpperCase() + skill.slice(1)}
-                  </span>
-                ))}
-              </div>
-            </div>
+    // Optional: weighted scoring
+    const skillWeights = {
+      python: 2,
+      sql: 2,
+      aws: 2,
+      git: 1,
+      docker: 1,
+      react: 2,
+      communication: 1,
+      leadership: 1
+    };
 
-            <div className="mb-2">
-              <strong>Missing Skills:</strong>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {result.missingSkills.length > 0 ? (
-                  result.missingSkills.map((skill, i) => (
-                    <span key={i} className="bg-red-100 text-red-800 text-sm font-medium px-3 py-1 rounded-full">
-                      {skill.charAt(0).toUpperCase() + skill.slice(1)}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-sm text-gray-600">None</span>
-                )}
-              </div>
-            </div>
+    const totalWeight = skillsInJob.reduce((sum, skill) => sum + (skillWeights[skill] || 1), 0);
+    const matchedWeight = matchedSkills.reduce((sum, skill) => sum + (skillWeights[skill] || 1), 0);
 
-            <p className="mt-4 text-gray-700"><strong>Summary:</strong> {result.summary}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+    const matchScore = totalWeight > 0 ? Math.round((matchedWeight / totalWeight) * 100) : 0;
 
-export default App;
+    res.json({
+      score: matchScore,
+      matchedSkills,
+      missingSkills,
+      summary: matchedSkills.length
+        ? `You're a good match! Focus on learning: ${missingSkills.join(", ") || "nothing — you're all set!"}`
+        : "No relevant skills found in resume. Consider tailoring it to this job."
+    });
+  } catch (error) {
+    console.error("❌ Error in /analyze:", error);
+    res.status(500).json({ error: "Something went wrong during analysis." });
+  }
+});
+
+// ✅ Start the server
+app.listen(5000, () => {
+  console.log("✅ Server running on http://localhost:5000");
+});
+
