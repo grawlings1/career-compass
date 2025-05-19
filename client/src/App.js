@@ -82,14 +82,24 @@ app.post("/analyze", upload.single("resume"), async (req, res) => {
     const totalWeight = skillsInJob.reduce((sum, skill) => sum + (skillWeights[skill] || 1), 0);
     const matchedWeight = matchedSkills.reduce((sum, skill) => sum + (skillWeights[skill] || 1), 0);
 
-    const matchScore = totalWeight > 0 ? Math.round((matchedWeight / totalWeight) * 100) : 0;
+    // Strict scoring: reward matches, penalize misses
+    const penalty = missingSkills.reduce((sum, skill) => sum + (skillWeights[skill] || 1), 0);
+    const rawScore = totalWeight > 0 ? (matchedWeight / totalWeight) * 100 : 0;
+    const matchScore = Math.max(0, Math.round(rawScore - penalty * 2));
+
+    // Recommendation level
+    let recommendation;
+    if (matchScore >= 80) recommendation = "Strong Match";
+    else if (matchScore >= 50) recommendation = "Average Match";
+    else recommendation = "Weak Match";
 
     res.json({
       score: matchScore,
       matchedSkills,
       missingSkills,
+      recommendation,
       summary: matchedSkills.length
-        ? `You're a good match! Focus on learning: ${missingSkills.join(", ") || "nothing — you're all set!"}`
+        ? `You're a ${recommendation.toLowerCase()}. Focus on learning: ${missingSkills.join(", ") || "nothing — you're all set!"}`
         : "No relevant skills found in resume. Consider tailoring it to this job."
     });
   } catch (error) {
@@ -102,4 +112,3 @@ app.post("/analyze", upload.single("resume"), async (req, res) => {
 app.listen(5000, () => {
   console.log("✅ Server running on http://localhost:5000");
 });
-
